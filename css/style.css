@@ -1,0 +1,36 @@
+/* 盤 */
+div.box {
+	display: inline-block;
+	width: 60px;
+	height: 60px;
+	font-size: 48px;
+	text-align: center;
+	display: table-cell; /* IE8から使用可能 */
+	vertical-align: middle;
+	border: 1px;
+	border-style: solid;
+	border-color: White;
+}
+
+/* ハイライト中の枠 */
+.hilight {
+	background-color: Yellow;
+	color: Yellow;
+}
+
+/* 普通の枠 */
+.notHilight {
+	background-color: Green;
+	color: Green;
+}
+
+/* 壁 */
+.wall {
+	border: 1px;
+	border-style: solid;
+	border-color: Gray;
+}
+
+li {
+	list-style-type: none;
+}

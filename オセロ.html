@@ -1,0 +1,433 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=Shift_JIS">
+    </head>
+    <body style="">
+        <!-- saved from url=(0049)http://mozaedon.web.fc2.com/riverse/board1_3.html -->
+        <p>
+        <meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
+        <title>オセロ</title>
+        <script language="JavaScript"><!--
+/*------------------------------------------初期設定----------------------------------------*/
+var i, x, y;
+var Blank = 0;
+var Black = 1;
+var White = 2;
+var Wall = 3;
+var Player;
+var Turn = 0;
+
+//画像の読み込み
+myImages = new Array(4);
+myImages[0] = "img/blank.gif";
+myImages[1] = "img/black.gif";
+myImages[2] = "img/white.gif";
+myImages[3] = "img/wall.gif";
+boardImages = new Array(4);
+for(i = 0; i < 4; i++) {
+	boardImages[i] = new Image();
+	boardImages[i].src = myImages[i];
+}
+
+//ボードの初期化
+myBoard = new Array(10);
+for(y = 0; y < 10; y++) {
+	myBoard[y] = new Array(10);
+	for(x = 0; x < 10; x++) {
+		if(y == 0 || y == 9 || x%10 == 0 || x%10 == 9)
+			myBoard[y][x] = Wall;
+		else
+			myBoard[y][x] = Blank;
+	}
+}
+myBoard[4][4] = White;
+myBoard[5][5] = White;
+myBoard[4][5] = Black;
+myBoard[5][4] = Black;
+
+//評価値の初期化
+Hyoukatihyou = new Array(
+  120, -20,  20,   5,   5,  20, -20, 120,
+  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+   20,  -5,  15,   3,   3,  15,  -5,  20,
+    5,  -5,   3,   3,   3,   3,  -5,   5,
+    5,  -5,   3,   3,   3,   3,  -5,   5,
+   20,  -5,  15,   3,   3,  15,  -5,  20,
+  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+  120, -20,  20,   5,   5,  20, -20, 120
+);
+
+/*-----------------------------------------盤を表示する処理----------------------------------------*/
+function vewBoard() {
+	for(y = 0; y < 10; y++) {
+		for(x = 0; x < 10; x++) {
+			if(myBoard[y][x] == Wall)
+				document.images[y*10+x].src = boardImages[3].src;
+			else if(myBoard[y][x] == Blank)
+				document.images[y*10+x].src = boardImages[0].src;
+			else if(myBoard[y][x] == Black)
+				document.images[y*10+x].src = boardImages[1].src;
+			else if(myBoard[y][x] == White)
+				document.images[y*10+x].src = boardImages[2].src;
+		}
+	}
+}
+
+/*-----------------------------------------ひっくり返す処理----------------------------------------*/
+//１方向に対してひっくり返すことができるか調べる
+function checkBoardLine(x, y, xi, yj, player, flag) {
+	var c, count = 0;
+	var vx = x + xi;
+	var vy = y + yj;
+	var Enemy = whoEnemy(player);
+
+	while(myBoard[vy][vx] == Enemy) {
+		vx += xi;
+		vy += yj;
+		count++;
+	}
+
+	if(myBoard[vy][vx] != player || count == 0)
+		return 0;
+
+	//alert("checkBoardLine count = " + count);
+
+	//alert("ひっくり返します");
+	//フラグが１の場合、ひっくり返す
+	if(flag == 1) {
+		//alert("ひっくり返します");
+		for(c = 0; c <= count; c++) {
+			myBoard[vy][vx] = player;
+			vx -= xi;
+			vy -= yj;
+		}
+	}
+
+	if(count != 0)
+		//alert("ひっくり返すことができる　count = " + count);
+
+	return count;
+}
+
+//８方向に対して、ひっくり返す処理
+function turnBoard(x, y, player) {
+	for(xi = -1; xi <= 1; xi++) {
+		for(yj = -1; yj <= 1; yj++) {
+			if(xi == 0 && yj == 0)
+				continue;
+
+			checkBoardLine(x, y, xi, yj, player, 1);
+		}
+	}
+}
+
+/*-----------------------------------------ひっくり返すことができるか調べる----------------------------------------*/
+function checkBoard(x, y, player) {
+	var count = 0;
+
+	for(xi = -1; xi <= 1; xi++) {
+		for(yj = -1; yj <= 1; yj++) {
+			if(xi == 0 && yj == 0)
+				continue;
+
+			//alert("y =" + j + "x=" + i +"\nの方向に対して置けるか調べます");
+			count += checkBoardLine(x, y, xi, yj, player, 0);
+		}
+	}
+
+	//ひっくり返すことができる石の数をreturnする
+	return count;
+}
+
+//すべてのマスを調べておける場所があるか調べる
+//置ける場所が無ければパス
+function checkAllBoard(player) {
+	var max = -120;
+	var putpoint = -120;
+
+	for(y = 0; y < 10; y++) {
+		for(x = 0; x < 10; x++) {
+			if(myBoard[y][x] != Blank)
+				continue;
+
+			//置ける場所がある場合
+			if(checkBoard(x, y, player) != 0) {
+				//評価関数から置ける場所の評価値を調べる
+				var c = Hyoukatihyou[(y-1)*8+x-1];
+
+				//alert("y = " + y + " x = " + x + "\nの評価関数は" + c);
+				if(max < c) {
+					max = c;
+					putpoint = y*10 + x;
+				}
+			}
+		}
+	}
+	return putpoint;
+}
+
+/*----------------------------敵の処理-----------------------------------------*/
+function enemyPut(player, Endflag) {
+	var Enemyputpoint = checkAllBoard(Player);
+
+	if(Enemyputpoint == -120) {						//置けなければパス
+		alert("置ける場所が無いためパスします");
+		if(Endflag == 1) {
+			//どちらもおくことができないため終了
+			endGame();
+		}
+	} else {
+		var y = parseInt(Enemyputpoint /10);
+		var x = Enemyputpoint % 10;
+
+		var els = document.getElementById("enemy_put");
+		els.innerHTML = "敵は\ny = " + y + "x = " + x + "に置きました";
+
+		myBoard[y][x] = player;
+		turnBoard(x, y, player);
+		vewBoard();
+		Turn++;
+	}
+
+	//交代
+	changePlayer(player);
+
+	if(Turn == 60)
+		endGame();
+}
+
+/*----------------------------プレイヤーに関する処理---------------------------------------*/
+//敵を調べる関数
+function whoEnemy(player) {
+	if(player == Black)
+		return White;
+	else
+		return Black;
+}
+
+//プレイヤーを交代する処理
+function changePlayer(player) {
+	if(Player == Black) {
+		Player = White;
+		textMessage("白の番です");
+	} else {
+		Player = Black;
+		textMessage("黒の番です");
+	}
+}
+
+function choosePlayer() {
+	yesno = confirm("先行（黒）でいいでしょうか？\nOK = 先行（黒）\tキャンセル = 後攻（白）");
+	if(yesno == true) {
+		Player = Black;
+	} else {
+		Player = Black;
+		enemyPut(Black, 0);
+	}
+}
+
+/*--------------------クリックされた時の処理--------------------------------------*/
+var flag = 0;
+function clicked(i) {
+	//i / 10では小数点になってしまうため、parseInt()で、小数点以下切り捨て
+	var y = parseInt(i /10);
+	var x = i % 10;
+
+	if(checkAllBoard(Player) == -120) {					//置く場所があるか調べる。置けなければパス
+		enemyPut(Player, 1);
+		changePlayer(Player);
+	} else if(myBoard[y][x] == Blank && checkBoard(x, y, Player) != 0){	//クリックされた場所が置けるか調べる
+		//ひっくり返す
+		turnBoard(x, y, Player);
+		myBoard[y][x] = Player;
+		vewBoard();
+
+		//プレイヤーを交代
+		changePlayer(Player);
+		enemyPut(Player, 0);
+		Turn++;
+	} else {
+		//alert("ここには置けません");
+		textMessage("ここには置けません");
+	}
+
+	if(Turn == 60)
+		endGame();
+}
+
+/*--------------------ゲームを終了させる処理--------------------------------------*/
+function endGame() {
+	var Countblack = 0;
+	var Countwhite = 0;
+	var Winmess;
+
+	for(y = 0; y < 10; y++) {
+		for(x = 0; x < 10; x++) {
+			if(myBoard[y][x] == Black)
+				Countblack++;
+			else if(myBoard[y][x] == White)
+				Countwhite++;
+		}
+	}
+
+	/*---------------------------勝敗メッセージの表示-------------------------------*/
+	if(Countblack > Countwhite)
+		Winmess = "黒の勝ち";
+	else if(Countblack < Countwhite)
+		Winmess = "白の勝ち";
+	else
+		Winmess = "引き分け";
+
+	winningMessage(Winmess);
+}
+
+/*--------------------メッセージの処理--------------------------------------*/
+function textMessage(TextMessage) {
+	var el = document.getElementById("message_box");
+	el.innerHTML = TextMessage;
+}
+
+function winningMessage(Winmess) {
+	var el = document.getElementById("winningmess");
+	el.innerHTML = Winmess;
+}
+//-->
+</script>    オセロゲームの予定<br>
+        一人オセロができます。<br>
+        これから敵を実装する予定。<br>
+        <br>
+
+        </p>
+        <div id="message_box">黒が先行です。クリックしてください</div>
+        <div id="enemy_put">&nbsp;</div>
+        <div id="winningmess">&nbsp;</div>
+        <p>&nbsp;</p>
+        <table boarder="1" boardercolor="black" style="font-size:1pt" cellspacing="0" cellpadding="0">
+            <tbody>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(11)" name="onboard11" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(12)" name="onboard12" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(13)" name="onboard13" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(14)" name="onboard14" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(15)" name="onboard15" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(16)" name="onboard16" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(17)" name="onboard17" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(18)" name="onboard18" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(21)" name="onboard21" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(22)" name="onboard22" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(23)" name="onboard23" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(24)" name="onboard24" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(25)" name="onboard25" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(26)" name="onboard26" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(27)" name="onboard27" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(28)" name="onboard28" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(31)" name="onboard31" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(32)" name="onboard32" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(33)" name="onboard33" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(34)" name="onboard34" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(35)" name="onboard35" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(36)" name="onboard36" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(37)" name="onboard37" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(38)" name="onboard38" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(41)" name="onboard41" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(42)" name="onboard42" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(43)" name="onboard43" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(44)" name="onboard44" alt="" src="img/white.gif"></td>
+                    <td><img onclick="clicked(45)" name="onboard45" alt="" src="img/black.gif"></td>
+                    <td><img onclick="clicked(46)" name="onboard46" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(47)" name="onboard47" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(48)" name="onboard48" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(51)" name="onboard51" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(52)" name="onboard52" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(53)" name="onboard53" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(54)" name="onboard54" alt="" src="img/black.gif"></td>
+                    <td><img onclick="clicked(55)" name="onboard55" alt="" src="img/white.gif"></td>
+                    <td><img onclick="clicked(56)" name="onboard56" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(57)" name="onboard57" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(58)" name="onboard58" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(61)" name="onboard61" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(62)" name="onboard62" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(63)" name="onboard63" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(64)" name="onboard64" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(65)" name="onboard65" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(66)" name="onboard66" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(67)" name="onboard67" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(68)" name="onboard68" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(71)" name="onboard71" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(72)" name="onboard72" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(73)" name="onboard73" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(74)" name="onboard74" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(75)" name="onboard75" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(76)" name="onboard76" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(77)" name="onboard77" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(78)" name="onboard78" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img onclick="clicked(81)" name="onboard81" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(82)" name="onboard82" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(83)" name="onboard83" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(84)" name="onboard84" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(85)" name="onboard85" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(86)" name="onboard86" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(87)" name="onboard87" alt="" src="img/blank.gif"></td>
+                    <td><img onclick="clicked(88)" name="onboard88" alt="" src="img/blank.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+                <tr>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                    <td><img alt="" src="img/wall.gif"></td>
+                </tr>
+            </tbody>
+        </table>
+        <script>
+vewBoard();
+choosePlayer();
+</script>
+</body>
+</html>

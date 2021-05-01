@@ -1,0 +1,230 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="css/style.css">
+<script type="text/javascript" src="js/jquery-3.2.1.min.js"></script>
+<script type="text/javascript" src="js/changeColor.js"></script>
+<script type="text/javascript" src="js/bord.js"></script>
+<script type="text/javascript" src="js/enemy.js"></script>
+<script src="https://code.jquery.com/color/jquery.color-2.1.2.js"
+	integrity="sha256-1Cn7TdfHiMcEbTuku97ZRSGt2b3SvZftEIn68UMgHC8="
+	crossorigin="anonymous"></script>
+<script type="text/javascript">
+	//プレイヤーカラー
+	var playerColor = WHITE;
+	var turnPlayer = playerColor;
+	var waitFlg = false;
+
+	//置けるフラグ
+	var putableBlackFlg = true;
+	var putableWhiteFlg = true;
+
+	$(document).ready(function() {
+		init();
+
+		//スタートボタン押した時の処理
+		$('#startButton').click(function() {
+			//TODO 初期化処理
+
+			//ラジオボタンの値取得
+			playerColor = $('input[name=color]:checked').val();
+			if (playerColor == BLACK) {
+				//TODO 敵置く処理
+				changePlayer();
+			}
+		});
+	});
+
+	//初期化処理
+	function init() {
+		initBord();
+
+		changeHilightBord();
+
+		//メッセージ更新
+		$('#turnMessage').text("白のターンです。");
+	}
+
+	//クリック時のイベント
+	function clickEvent(no) {
+		//ウェイト中は何もしない
+		if (waitFlg) {
+			return;
+		}
+
+		//置けるかチェック
+		if (!$(no).hasClass('hilight')) {
+			$('#message').text("ここには置けません");
+			return;
+		}
+
+		//石を置く
+		const　x = $(no).attr("id") % 10;
+		const　y = parseInt($(no).attr("id") / 10);
+		putPlayer(x, y);
+	}
+
+	//石を置く処理
+	function putPlayer(x, y) {
+		//フラグリセット
+		putableBlackFlg = true;
+		putableWhiteFlg = true;
+
+		//ウエイト開始
+		waitFlg = true;
+		$('#message').text("お待ちください");
+		document.body.style.cursor = 'wait';
+
+		//ひっくり返す
+		checkBoard(x, y, turnPlayer, true);
+
+		//置く
+		putBord(x, y, turnPlayer);
+
+		//ボードの色を変える
+		const id = getId(x, y);
+		changeColor($("#" + id), turnPlayer);
+
+		//処理を中断するかチェック
+
+		//3秒待ち、ウエイト解除
+		setTimeout(function() {
+			waitFlg = false;
+			$('#message').text("");
+			document.body.style.cursor = 'auto';
+
+			//交代後の処理
+			changePlayer();
+		}, 1000);
+
+		//個数を数える
+		$('#scoreWhite').text("白：" + getColorCount(WHITE));
+		$('#scoreBlack').text("黒：" + getColorCount(BLACK));
+	}
+
+	//ターン変更
+	function changePlayer() {
+		//ターン変更
+		turnPlayer = getEnemyColor(turnPlayer);
+
+		//置けるかチェック
+		if(!checkPutable(turnPlayer)) {
+			if(turnPlayer == WHITE) {
+				putableWhiteFlg = false;
+				alert("白は置くことができないため、パスします");
+			} else {
+				putableBlackFlg = false;
+				alert("黒は置くことができないため、パスします");
+			}
+
+			//両方置けない場合
+			if(putableWhiteFlg == false && putableBlackFlg == false) {
+				//TODO 終了処理
+				alert("これ以上置くことができないため終了します");
+				return;
+			}
+
+			//何もせずプレイヤー交代
+			return changePlayer();
+		}
+
+		//置ける場所をハイライト
+		changeHilightBord();
+
+		//メッセージ更新
+		if (turnPlayer == WHITE) {
+			$('#turnMessage').text("白のターンです。");
+		} else {
+			$('#turnMessage').text("黒のターンです。");
+		}
+
+		if(turnPlayer != playerColor) {
+			//敵処理
+			const putId = checkAllBoard(turnPlayer);
+			const　x = putId % 10;
+			const　y = parseInt(putId / 10);
+			putPlayer(x, y);
+		}
+	}
+
+	//敵色取得
+	function getEnemyColor(color) {
+		if (color == WHITE) {
+			return BLACK;
+		} else {
+			return WHITE;
+		}
+	}
+
+	//置ける場所をハイライトで強調する
+	function changeHilightBord() {
+		doBackHilightBord();
+		doHilightBord(turnPlayer);
+	}
+</script>
+
+</head>
+<body>
+    <table>
+      <tr>
+        <td><label>色選択</label></td>
+        <td>
+			<script type="text/javascript">
+				(function() {
+					document.write("<p class=\"radio-area\">");
+					document
+							.write("  <input type=\"radio\" name=\"color\" value=" + WHITE +  " checked=\"checked\">白(先攻)");
+					document
+							.write("  <input type=\"radio\" name=\"color\" value=" + BLACK + " checked=\"checked\">黒(後攻)");
+					document.write("</p>");
+				})();
+		  </script>
+        </td>
+      </tr>
+
+      <tr>
+        <td><label>ターン</label></td>
+        <td><span id="turnMessage"></span></td>
+      </tr>
+
+      <tr>
+        <td><label>メッセージ</label></td>
+        <td><span id="message"></span></td>
+      </tr>
+    </table>
+
+    <input id="startButton" type="button" value="スタート">
+
+    <div id="scoreWhite">白:</div>
+    <div id="scoreBlack">黒:</div>
+
+    <br/>
+    <br/>
+	<div class="border">
+		<ul>
+			<script type="text/javascript">
+			    const MAX_ROW = 10;
+  			    const MAX_COL = 10;
+
+				(function() {
+					for (var row = 0; row < MAX_ROW; row++) {
+						document.write("<li>");
+
+						for (var col = 0; col < MAX_COL; col++) {
+							const id = row * MAX_COL + col;
+
+							if(col == 0 || col == MAX_COL - 1 || row == 0 || row == MAX_ROW - 1) {
+								document.write("<div id=" + id + " style=\"background-color: Gray; \" value=\"" + WALL + "\" class=\"box wall\"></div>");
+							} else {
+								 document.write("<div onClick=clickEvent(this) id=" + id + " value=\"" + NOTHING + "\" class=\"box notHilight\">●</div>");
+							}
+						}
+					}
+ 					init();
+				}());
+			</script>
+		</ul>
+	</div>
+</body>
+</html>
+
